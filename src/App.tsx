@@ -1,16 +1,27 @@
-import React from 'react';
-import logo from './logo.svg';
+import React, {useState, useEffect} from 'react';
 import './App.css';
 import { useQuery } from "@apollo/client";
 import INFO_ANT from "./querys/ant-query";
-import {Ant} from "./entities/ant";
-import {Button, Col, Container, Row, Table} from "react-bootstrap";
+import {Button, Col, Container, Row} from "react-bootstrap";
 import ModalComponent from "./components/modal";
+import AntComponent from "./components/ant";
+import generateAntWinLikelihoodCalculator from "./utils/generateAntWinLikelihoodCalculator";
+import {Ant} from "./entities/ant";
 
 function App() {
-  const { loading, error, data, refetch } = useQuery(INFO_ANT);
-  const [modalShow, setModalShow] = React.useState(false);
-  const [ant, setAnt] = React.useState({});
+    const { loading, error, data, refetch } = useQuery(INFO_ANT);
+    const [probabilityData, setProbabilityData] = useState([]);
+    const [updatedDataEntry, setUpdatedDataEntry] = useState([-1, -1]);
+    const [selectedAnt, setSelectedAnt] = useState<Ant>({name:'', color:'', length:0, weight:0});
+    const [hasRaceStarted, setHasRaceStarted] = useState(false);
+    const [modalShow, setModalShow] = useState(false)
+
+    useEffect(() => {
+        const updatedProbabilityData = [...probabilityData];
+        // @ts-ignore
+        updatedProbabilityData[updatedDataEntry[0]] = updatedDataEntry[1];
+        setProbabilityData(updatedProbabilityData);
+    }, [updatedDataEntry]);
 
   if (loading) {
     return <p>Loading...</p>;
@@ -20,17 +31,42 @@ function App() {
     return <p>an error occurred...</p>;
   }
 
-    function generateAntWinLikelihoodCalculator() {
-        const delay = 7000 + Math.random() * 7000;
-        const likelihoodOfAntWinning = Math.random();
-        alert('delay ' + delay +' likelihoodOfAntWinning '+likelihoodOfAntWinning)
-        return (callback:any) => {
-            setTimeout(() => {
-                callback(likelihoodOfAntWinning);
-                console.log(callback)
-            }, delay);
-        };
+    function displayAntsData() {
+        const nextProbabilityData: string[] | ((prevState: never[]) => never[]) = [];
+        data.ants.forEach(() => nextProbabilityData.push('Not yet run'));
+        // @ts-ignore
+        setProbabilityData(nextProbabilityData);
+        // api.fetchAnts().then((response) => {
+        //     const nextProbabilityData = [];
+        //     response.data.ants.forEach(() => nextProbabilityData.push('Not yet run'));
+        //     setAntsData(response.data.ants);
+        //     setProbabilityData(nextProbabilityData);
+        // });
     }
+
+
+    function fetchAntWinLikelihood(index:any) {
+        return new Promise(generateAntWinLikelihoodCalculator()).then((resolved) => {
+            setUpdatedDataEntry([index, resolved]);
+        });
+    }
+
+    function startRace() {
+        const nextProbabilityData = probabilityData.slice();
+        for(let i = 0; i < data.ants.length; i++) {
+            fetchAntWinLikelihood(i);
+            // @ts-ignore
+            nextProbabilityData[i] = 'In progress';
+        }
+        setProbabilityData(nextProbabilityData);
+        setHasRaceStarted(true);
+    }
+
+    function selectAnt(ant:Ant) {
+      setSelectedAnt(ant);
+      setModalShow(true);
+    }
+
 
   return (
       <section className="parent">
@@ -38,39 +74,27 @@ function App() {
               <Row className="justify-content-md-center text-center" style={{marginBottom: "20px", marginTop: "20px"}}>
                   <Col>
                     <Button variant="outline-primary"
-                            onClick={() => refetch()}>Update Ants</Button>{' '}
+                            onClick={() => displayAntsData()}>Fetch Ants</Button>{' '}
                     <Button variant="outline-primary"
-                            onClick={() => generateAntWinLikelihoodCalculator()}
+                            onClick={() => startRace()}
                     >Start a Race</Button>
                   </Col>
               </Row>
               <Row className="justify-content-md-center">
                   <Col>
-                    <Table striped bordered hover>
-                      <thead>
-                      <tr>
-                        <th>#</th>
-                        <th>Name</th>
-                        <th style={{width: "20px"}}></th>
-                      </tr>
-                      </thead>
-                      <tbody>
-                    {data.ants.map((ant:Ant, index:number) => (
-                        <tr>
-                            <td>{index+1}</td>
-                          <td>{ant.name}</td>
-                          <td><Button variant="primary" onClick={() => { setAnt(ant); setModalShow(true) }}> {">"} </Button></td>
-                        </tr>
-                    ))}
-                      </tbody>
-                    </Table>
+                      <AntComponent
+                          antsData={data.ants}
+                          probabilityData={probabilityData}
+                          hasRaceStarted={hasRaceStarted}
+                          selectAnt={selectAnt}
+                      />
                   </Col>
               </Row>
           </Container>
           <ModalComponent
-              ant={ant}
-              show={modalShow}
-              onHide={() => setModalShow(false)}
+             ant={selectedAnt}
+             show={modalShow}
+             onHide={() => setModalShow(false)}
           />
       </section>
   );

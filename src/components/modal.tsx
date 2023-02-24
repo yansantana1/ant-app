@@ -1,7 +1,5 @@
 import React from 'react';
 import {Modal, Button} from "react-bootstrap";
-import {Ant} from "../entities/ant";
-
 function ModalComponent(props:any) {
     return (
         <Modal
